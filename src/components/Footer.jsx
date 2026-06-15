@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import useTrainingStore from '../store/trainingStore'
 
@@ -41,7 +42,7 @@ export default function Footer() {
 }
 
 function FooterLink({ onClick, children }) {
-  const [hovered, setHovered] = require('react').useState(false)
+  const [hovered, setHovered] = useState(false)
   return (
     <button onClick={onClick}
       onMouseEnter={() => setHovered(true)}
