@@ -174,6 +174,8 @@ function PRCard({ event, pr, estimated, setPR }) {
 export default function PRsView() {
   const prs        = useTrainingStore(s => s.prs) || {}
   const profile    = useTrainingStore(s => s.profile) || {}
+  const prFirst    = (profile.name || '').trim().split(/\s+/)[0]
+  const prOwner    = prFirst ? prFirst + "'s" : 'My'
   const runs       = useTrainingStore(s => s.runs) || []
   const setPR      = useTrainingStore(s => s.setPR)
   const setProfile = useTrainingStore(s => s.setProfile)
@@ -197,7 +199,7 @@ export default function PRsView() {
         <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.55 }} style={{ marginBottom:48 }}>
           <p style={{ fontSize:10, fontFamily:'monospace', color:'rgba(255,255,255,0.22)', textTransform:'uppercase', letterSpacing:'0.4em', marginBottom:14 }}>— Personal Records</p>
           <h1 className="font-display font-bold text-white" style={{ fontSize:52, lineHeight:1 }}>
-            Hayden's <span style={{ background:'linear-gradient(to right,#22d3ee,#818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>PR Board</span>
+            {prOwner} <span style={{ background:'linear-gradient(to right,#22d3ee,#818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>PR Board</span>
           </h1>
           {runs.length > 0 && (
             <p style={{ fontSize:13, color:'#475569', marginTop:12, display:'flex', alignItems:'center', gap:6 }}>

@@ -5,6 +5,7 @@ import {
   ArrowRight, AlertTriangle, CheckCircle, Info, ChevronDown, ArrowUpRight, Trophy
 } from 'lucide-react'
 import useTrainingStore from '../store/trainingStore'
+import { useAuth } from '../contexts/AuthContext'
 import { analyzeTraining, computeStreaks } from '../utils/analysis'
 import { format, parseISO } from 'date-fns'
 
@@ -131,7 +132,12 @@ function HeroStatCard({ label, value, suffix, dec, delay, icon: Icon, color }) {
 /* ─── Section 1: Cinematic hero ──────────────────────────────── */
 function HeroSection({ thisWeekActual, thisWeekPlanned, last4Avg, avgHR, streaks, totalMiles, setActivePage, vo2Est }) {
   const profile = useTrainingStore(s => s.profile) || {}
+  const { user } = useAuth()
   const vo2Display = profile.voMax || (vo2Est ? String(vo2Est) : null)
+  const athleteName   = (profile.name && profile.name.trim()) || (user?.email ? user.email.split('@')[0] : '') || 'Athlete'
+  const athleteSport  = (profile.sport && profile.sport.trim()) || 'XC · Track'
+  const athleteSchool = (profile.school && profile.school.trim()) || ''
+  const profileSubtitle = [athleteSchool, athleteSport].filter(Boolean).join(' · ')
   return (
     <section style={{ height: 'calc(100vh - 56px)', position: 'relative', overflow: 'hidden' }}>
 
@@ -162,7 +168,7 @@ function HeroSection({ thisWeekActual, thisWeekPlanned, last4Avg, avgHR, streaks
           transition={{ delay: 0.25, duration: 0.6 }}
           className="font-mono text-white/45 uppercase mb-5"
           style={{ fontSize: 11, letterSpacing: '0.4em' }}>
-          HAYDEN HOOPER · {format(new Date(), 'MMMM d, yyyy')}
+          {athleteName.toUpperCase()} · {format(new Date(), 'MMMM d, yyyy')}
         </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }}
@@ -194,8 +200,8 @@ function HeroSection({ thisWeekActual, thisWeekPlanned, last4Avg, avgHR, streaks
             borderRadius:22, padding:'44px 48px',
           }}>
           <p className="font-mono text-white/25 uppercase mb-1" style={{ fontSize:8.5, letterSpacing:'0.35em' }}>Athlete Profile</p>
-          <p className="font-display font-bold text-white" style={{ fontSize:54, lineHeight:0.95, marginBottom:8 }}>Hayden Hooper</p>
-          <p className="font-mono text-white/40" style={{ fontSize:14 }}>Colorado School of Mines · XC / Track</p>
+          <p className="font-display font-bold text-white" style={{ fontSize:54, lineHeight:0.95, marginBottom:8 }}>{athleteName}</p>
+          <p className="font-mono text-white/40" style={{ fontSize:14 }}>{profileSubtitle}</p>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'18px 24px', marginBottom:24 }}>
             <div>
@@ -210,11 +216,11 @@ function HeroSection({ thisWeekActual, thisWeekPlanned, last4Avg, avgHR, streaks
             </div>
             <div>
               <p className="font-mono text-white/40 uppercase mb-2" style={{ fontSize:12, letterSpacing:'0.22em' }}>School</p>
-              <p className="font-display font-bold text-white" style={{ fontSize:22 }}>Mines</p>
+              <p className="font-display font-bold text-white" style={{ fontSize:22 }}>{athleteSchool || '—'}</p>
             </div>
             <div>
               <p className="font-mono text-white/40 uppercase mb-2" style={{ fontSize:12, letterSpacing:'0.22em' }}>Sport</p>
-              <p className="font-display font-bold text-white" style={{ fontSize:22 }}>XC · Track</p>
+              <p className="font-display font-bold text-white" style={{ fontSize:22 }}>{athleteSport}</p>
             </div>
           </div>
 

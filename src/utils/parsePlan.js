@@ -3,15 +3,38 @@ import { addDays, format, startOfWeek, nextMonday } from 'date-fns'
 const DAY_NAMES = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
 const DAY_INDEX = { monday:0, tuesday:1, wednesday:2, thursday:3, friday:4, saturday:5, sunday:6 }
 
-// Detect workout type from day notes + mileage
+// Detect workout type from day notes + mileage.
+// IMPORTANT: strides, hill sprints and drills are easy-run ADD-ONS, not workouts.
+// They're stripped out before we look for real workout structure, so a day like
+// "easy + 6 hill sprints" or "8 + drills + 5 strides" stays an Easy Run.
+// A real workout needs rep structure (e.g. "6x3min", "8x400"), hill *repeats*,
+// a tempo/threshold effort, or fartlek.
 function inferWorkoutType(dayName, mileage, notes, workoutDesc) {
   const allText = `${notes} ${workoutDesc}`.toLowerCase()
   if (mileage === 0) return 'Rest'
-  if (allText.includes('hill repeat') || allText.includes('hill sprint') || allText.includes('x1min') || allText.includes('x 1min') || allText.includes('repeat') || allText.includes('fartlek') || allText.includes('interval')) return 'Intervals'
-  if (allText.includes('tempo') || allText.includes('threshold') || allText.includes('km)') || allText.includes('2km') || allText.includes('pace')) return 'Tempo'
+
+  // Remove easy-run add-ons (strides / hill sprints / drills) first.
+  const core = allText
+    .replace(/\d+\s*(?:x|×)\s*\d+\s*m?\s*(?:strides?|hill\s*sprints?)/g, ' ') // "6x100m strides"
+    .replace(/\d+\s*(?:x|×)?\s*strides?/g, ' ')                              // "5 strides", "5x strides"
+    .replace(/\d+\s*hill\s*sprints?/g, ' ')                                  // "6 hill sprints"
+    .replace(/\bstrides?\b/g, ' ')
+    .replace(/\bhill\s*sprints?\b/g, ' ')
+    .replace(/\bdrills?\b/g, ' ')
+
+  // Real interval / rep workout: "6x3min", "8 x 400", "5x1000m", hill repeats, fartlek
+  if (/\d+\s*(?:x|×)\s*\d+/.test(core) ||
+      core.includes('hill repeat') || core.includes('fartlek') ||
+      core.includes('interval') || /\brepeats?\b/.test(core))
+    return 'Intervals'
+
+  // Tempo / threshold / sustained effort at a target pace
+  if (core.includes('tempo') || core.includes('threshold') || core.includes('cruise') ||
+      /@\s*\d+:\d+/.test(core) || core.includes('race pace') || core.includes('goal pace'))
+    return 'Tempo'
+
   if (dayName === 'sunday' && mileage >= 12) return 'Long Run'
   if (mileage <= 5) return 'Shakeout'
-  if (allText.includes('recovery') || allText.includes('easy') || mileage <= 6) return 'Easy Run'
   return 'Easy Run'
 }
 

@@ -10,7 +10,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import useTrainingStore from '../store/trainingStore'
 import { parsePastedPlan, getCurrentMonday, getUpcomingMonday } from '../utils/parsePlan'
-import { parseGpxString, matchRunToWeek } from '../utils/parseGpx'
+import { matchRunToWeek } from '../utils/parseGpx'
 import { parseFitBuffer, fitRunToDay } from '../utils/parseFit'
 
 const WORKOUT_COLORS = {
@@ -328,23 +328,27 @@ function FitTab({ onSuccess, onError }) {
   )
 }
 
-// ── GPX IMPORT TAB ────────────────────────────────────────────────────────────
-function GpxTab({ onSuccess, onError }) {
-  const { weeks, updateDay } = useTrainingStore()
+// ── INDIVIDUAL .FIT IMPORT TAB ─────────────────────────────────────────────────
+function FitFileTab({ onSuccess, onError }) {
+  const { weeks, addRuns, updateDay } = useTrainingStore()
   const [parsed, setParsed] = useState([])
   const [saving, setSaving] = useState(false)
 
   const processFiles = useCallback(async (files) => {
     const results = []
     for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.fit')) {
+        results.push({ name: file.name, run: null, week: null, status: 'error', error: 'Not a .fit file' }); continue
+      }
       try {
-        const text = await file.text()
-        const run = parseGpxString(text)
-        if (!run.date) { results.push({ run: { name: file.name, date: '?' }, week: null, status: 'no-date' }); continue }
+        const buf = await file.arrayBuffer()
+        const run = await parseFitBuffer(buf, file.name)
+        if (run === null) { results.push({ name: file.name, run: null, week: null, status: 'skipped' }); continue }
+        if (run.error)    { results.push({ name: file.name, run: null, week: null, status: 'error', error: run.error }); continue }
         const week = matchRunToWeek(run.date, weeks)
-        results.push({ run, week, status: week ? 'matched' : 'unmatched', file: file.name })
-      } catch(e) {
-        results.push({ run: { name: file.name, date: '?' }, week: null, status: 'error', error: e.message })
+        results.push({ name: file.name, run, week, status: week ? 'matched' : 'unmatched' })
+      } catch (e) {
+        results.push({ name: file.name, run: null, week: null, status: 'error', error: e.message })
       }
     }
     setParsed(prev => [...prev, ...results])
@@ -352,41 +356,51 @@ function GpxTab({ onSuccess, onError }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: processFiles,
-    accept: { 'application/gpx+xml': ['.gpx'], 'text/xml': ['.gpx', '.xml'] },
+    accept: { 'application/octet-stream': ['.fit'], 'application/vnd.ant.fit': ['.fit'] },
   })
 
   const saveAll = async () => {
     setSaving(true)
-    let saved = 0
+    // Every valid run is added to training history so it counts toward total
+    // stats, mileage and insights — whether or not it matches a planned week.
+    const runsToAdd = parsed.filter(p => p.run && (p.status === 'matched' || p.status === 'unmatched')).map(p => p.run)
+    addRuns(runsToAdd)
+    // Backfill the matching plan day for runs that fell inside a planned week.
     for (const item of parsed) {
-      if (item.status !== 'matched' || !item.week) continue
-      updateDay(item.week.id, item.run.date, {
-        mileage: item.run.mileage,
-        avgHeartRate: item.run.avgHeartRate,
-        avgPace: item.run.avgPace,
-        elevationGain: item.run.elevationGain,
-        completed: true,
-      })
-      saved++
+      if (item.status === 'matched' && item.week && item.run) {
+        updateDay(item.week.id, item.run.date, fitRunToDay(item.run))
+      }
     }
     setSaving(false)
     setParsed([])
-    onSuccess(`Saved ${saved} run${saved !== 1 ? 's' : ''} to your training log!`)
+    onSuccess(`Saved ${runsToAdd.length} run${runsToAdd.length !== 1 ? 's' : ''} — added to your totals, mileage & insights.`)
   }
 
-  const remove = (date) => setParsed(p => p.filter(r => r.run.date !== date))
-  const matchedCount = parsed.filter(r => r.status === 'matched').length
+  const removeAt = (idx) => setParsed(p => p.filter((_, i) => i !== idx))
+  const validCount = parsed.filter(p => p.status === 'matched' || p.status === 'unmatched').length
 
   return (
     <div className="space-y-4">
-      <div {...getRootProps()} className={`rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${isDragActive?'border-emerald-400 bg-emerald-500/5':'border-white/10 hover:border-emerald-500/40 hover:bg-white/2'}`}>
+      <div className="glass rounded-xl p-4 border border-cyan-500/15">
+        <div className="flex items-center gap-2 mb-1">
+          <FileText size={15} className="text-cyan-400"/>
+          <p className="text-xs font-semibold text-cyan-300 uppercase tracking-wider">Individual .fit files</p>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Drop one or more <span className="text-white font-medium">.fit</span> files (single-activity export from Coros / Garmin).
+          Every run is added to your history; runs inside a planned week auto-match to that day.
+          For a whole export at once, use the <span className="text-white font-medium">Bulk FIT Import</span> tab.
+        </p>
+      </div>
+
+      <div {...getRootProps()} className={`rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all ${isDragActive?'border-cyan-400 bg-cyan-500/5':'border-white/10 hover:border-cyan-500/40 hover:bg-white/2'}`}>
         <input {...getInputProps()}/>
         <motion.div animate={{scale:isDragActive?1.05:1}} transition={{type:'spring',stiffness:300}}>
-          <div className={`w-14 h-14 rounded-xl mx-auto mb-3 flex items-center justify-center ${isDragActive?'bg-emerald-500/20':'bg-white/5'}`}>
-            <MapPin size={24} className={isDragActive?'text-emerald-400':'text-slate-400'}/>
+          <div className={`w-14 h-14 rounded-xl mx-auto mb-3 flex items-center justify-center ${isDragActive?'bg-cyan-500/20':'bg-white/5'}`}>
+            <Activity size={24} className={isDragActive?'text-cyan-400':'text-slate-400'}/>
           </div>
-          <p className="text-white font-semibold mb-1">{isDragActive?'Drop GPX files':'Drop .gpx files here'}</p>
-          <p className="text-slate-500 text-sm">Multiple files — matched to training weeks by date</p>
+          <p className="text-white font-semibold mb-1">{isDragActive?'Drop .fit files':'Drop .fit files here'}</p>
+          <p className="text-slate-500 text-sm">Multiple files — added to totals & matched to weeks by date</p>
         </motion.div>
       </div>
 
@@ -395,45 +409,47 @@ function GpxTab({ onSuccess, onError }) {
           <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0}} className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                {parsed.length} file{parsed.length!==1?'s':''} — {matchedCount} matched
+                {parsed.length} file{parsed.length!==1?'s':''} — {validCount} ready
               </p>
               <button onClick={()=>setParsed([])} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Clear all</button>
             </div>
             <div className="glass rounded-2xl border border-white/5 overflow-hidden divide-y divide-white/3">
               {parsed.map((item, i) => (
-                <motion.div key={item.run.date||i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:i*0.05}}
+                <motion.div key={i} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:i*0.04}}
                   className="px-4 py-3 flex items-start gap-3">
                   <div className="mt-0.5">
-                    {item.status==='matched' && <CheckCircle size={15} className="text-emerald-400"/>}
-                    {item.status==='unmatched' && <AlertTriangle size={15} className="text-orange-400"/>}
-                    {(item.status==='error'||item.status==='no-date') && <X size={15} className="text-red-400"/>}
+                    {item.status==='matched'   && <CheckCircle size={15} className="text-emerald-400"/>}
+                    {item.status==='unmatched' && <CheckCircle size={15} className="text-cyan-400"/>}
+                    {item.status==='skipped'   && <AlertTriangle size={15} className="text-slate-500"/>}
+                    {item.status==='error'     && <X size={15} className="text-red-400"/>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-medium text-white truncate">{item.run.name || item.file}</p>
-                      {item.run.date && <span className="text-xs text-slate-500 font-mono shrink-0">{item.run.date}</span>}
+                      <p className="text-sm font-medium text-white truncate">{(item.name||'').split('/').pop()}</p>
+                      {item.run?.date && <span className="text-xs text-slate-500 font-mono shrink-0">{item.run.date}</span>}
                     </div>
-                    {item.status==='matched' && (
+                    {(item.status==='matched'||item.status==='unmatched') && item.run && (
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="flex items-center gap-1 text-xs text-emerald-400"><Activity size={11}/>{item.run.mileage} mi</span>
-                        {item.run.avgHeartRate&&<span className="flex items-center gap-1 text-xs text-rose-400"><Heart size={11}/>{item.run.avgHeartRate} bpm</span>}
+                        {item.run.avgHR&&<span className="flex items-center gap-1 text-xs text-rose-400"><Heart size={11}/>{item.run.avgHR} bpm</span>}
                         {item.run.avgPace&&<span className="flex items-center gap-1 text-xs text-cyan-400"><Clock size={11}/>{item.run.avgPace}/mi</span>}
-                        {item.run.elevationGain>0&&<span className="flex items-center gap-1 text-xs text-violet-400"><Mountain size={11}/>{item.run.elevationGain} ft</span>}
-                        <span className="text-xs text-slate-500">→ {item.week?.startDate ? `week of ${format(parseISO(item.week.startDate),'MMM d')}` : ''}</span>
+                        {item.run.elevGainFt>0&&<span className="flex items-center gap-1 text-xs text-violet-400"><Mountain size={11}/>{item.run.elevGainFt} ft</span>}
+                        <span className="text-xs text-slate-500">
+                          {item.week?.startDate ? `→ week of ${format(parseISO(item.week.startDate),'MMM d')}` : '→ added to history'}
+                        </span>
                       </div>
                     )}
-                    {item.status==='unmatched' && <p className="text-xs text-orange-400">No training week found for this date.</p>}
-                    {item.status==='error' && <p className="text-xs text-red-400">{item.error}</p>}
-                    {item.status==='no-date' && <p className="text-xs text-yellow-400">GPX file has no timestamps.</p>}
+                    {item.status==='skipped' && <p className="text-xs text-slate-500">Not a run activity — skipped.</p>}
+                    {item.status==='error'   && <p className="text-xs text-red-400">{item.error}</p>}
                   </div>
-                  <button onClick={()=>remove(item.run.date)} className="text-slate-600 hover:text-red-400 transition-colors mt-0.5 shrink-0"><Trash2 size={13}/></button>
+                  <button onClick={()=>removeAt(i)} className="text-slate-600 hover:text-red-400 transition-colors mt-0.5 shrink-0"><Trash2 size={13}/></button>
                 </motion.div>
               ))}
             </div>
-            {matchedCount > 0 && (
+            {validCount > 0 && (
               <motion.button onClick={saveAll} disabled={saving} whileHover={{scale:1.01}} whileTap={{scale:0.98}}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/20">
-                <CheckCircle size={15}/> Save {matchedCount} Run{matchedCount!==1?'s':''} to Training Log
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm shadow-lg shadow-cyan-500/20">
+                <CheckCircle size={15}/> Save {validCount} Run{validCount!==1?'s':''} to Training Log
               </motion.button>
             )}
           </motion.div>
@@ -497,7 +513,7 @@ function FileTab({ onSuccess, onError }) {
 const TABS = [
   { id:'fit',    label:'Bulk FIT Import', icon:Archive },
   { id:'paste',  label:'Paste Plan',      icon:ClipboardPaste },
-  { id:'gpx',    label:'Import GPX',      icon:MapPin },
+  { id:'fitfile', label:'Import .fit',     icon:FileText },
   { id:'upload', label:'Upload CSV',      icon:Upload },
 ]
 
@@ -529,7 +545,7 @@ export default function UploadPlan() {
         <motion.div key={tab} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:0.2}}>
           {tab==='fit'    && <FitTab    onSuccess={msg=>showToast(msg)} onError={msg=>showToast(msg,'error')}/>}
           {tab==='paste'  && <PasteTab  onSuccess={msg=>showToast(msg)}/>}
-          {tab==='gpx'    && <GpxTab    onSuccess={msg=>showToast(msg)} onError={msg=>showToast(msg,'error')}/>}
+          {tab==='fitfile' && <FitFileTab onSuccess={msg=>showToast(msg)} onError={msg=>showToast(msg,'error')}/>}
           {tab==='upload' && <FileTab   onSuccess={msg=>showToast(msg)} onError={msg=>showToast(msg,'error')}/>}
         </motion.div>
       </AnimatePresence>

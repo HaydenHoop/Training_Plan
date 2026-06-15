@@ -187,15 +187,16 @@ function MainApp() {
       <TopNav activePage={activePage} setActivePage={setActivePage}/>
       {!isDash && <BackgroundScene page={activePage}/>}
       <main className="flex-1 overflow-y-auto relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div key={activePage}
-            initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0}}
-            transition={{duration:0.3,ease:[0.22,1,0.36,1]}}
-            className="min-h-full flex flex-col">
-            {!isDash && <PageHero page={activePage}/>}
-            <div className="flex-1"><ErrorBoundary><PageComp/></ErrorBoundary></div>
-          </motion.div>
-        </AnimatePresence>
+        {/* Keyed motion.div remounts + fades in on each tab change. No
+            AnimatePresence "wait" mode: an interrupted exit can never leave the
+            page blank, and the ErrorBoundary is keyed so it resets per tab. */}
+        <motion.div key={activePage}
+          initial={{opacity:0,y:12}} animate={{opacity:1,y:0}}
+          transition={{duration:0.3,ease:[0.22,1,0.36,1]}}
+          className="min-h-full flex flex-col">
+          {!isDash && <PageHero page={activePage}/>}
+          <div className="flex-1"><ErrorBoundary key={activePage}><PageComp/></ErrorBoundary></div>
+        </motion.div>
       </main>
       <Footer/>
     </div>

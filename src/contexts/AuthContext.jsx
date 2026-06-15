@@ -91,7 +91,10 @@ export function AuthProvider({ children }) {
         if (!mounted) return
         const u = session?.user ?? null
         setUser(u)
-        if (u) loadUserData(u.id)
+        if (u) {
+          useTrainingStore.getState().setSupabaseUserId(u.id)
+          loadUserData(u.id)
+        }
       })
       .catch((err) => {
         console.error('[Auth] getSession failed:', err)
@@ -105,8 +108,13 @@ export function AuthProvider({ children }) {
       setLoading(false)
       // Defer Supabase data calls OUT of the auth callback — calling them
       // synchronously inside onAuthStateChange can deadlock the auth lock.
-      if (u) setTimeout(() => loadUserData(u.id), 0)
-      else clearStore()
+      if (u) {
+        useTrainingStore.getState().setSupabaseUserId(u.id)
+        setTimeout(() => loadUserData(u.id), 0)
+      } else {
+        useTrainingStore.getState().setSupabaseUserId(null)
+        clearStore()
+      }
     })
 
     return () => { mounted = false; subscription.unsubscribe() }
