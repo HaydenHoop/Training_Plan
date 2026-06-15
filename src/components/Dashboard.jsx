@@ -169,7 +169,7 @@ function HeroSection({ thisWeekActual, thisWeekPlanned, last4Avg, avgHR, streaks
           transition={{ delay: 0.35, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
           className="font-display font-bold text-white tracking-tight uppercase"
           style={{ fontSize: 'clamp(38px, 5vw, 78px)', whiteSpace: 'nowrap', lineHeight: 1 }}>
-          BUILT FOR THE COURSE
+          Built For the Grind
         </motion.h1>
         <motion.div
           initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}

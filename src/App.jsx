@@ -94,7 +94,7 @@ function TopNav({ activePage, setActivePage }) {
           className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/30">
           <Zap size={14} className="text-white" strokeWidth={2.5}/>
         </motion.div>
-        <span className="font-display font-bold text-sm text-white/90 leading-none hidden sm:block">XC Training</span>
+        <span className="font-display font-bold text-sm text-white/90 leading-none hidden sm:block">On The Line</span>
       </button>
 
       {/* Desktop links */}
@@ -116,12 +116,6 @@ function TopNav({ activePage, setActivePage }) {
           )
         })}
       </nav>
-
-      {/* Right badge */}
-      <div className="ml-auto hidden md:flex items-center gap-2 text-[10px] font-mono text-slate-500 uppercase tracking-widest">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/>
-        Live
-      </div>
 
       {/* Mobile hamburger */}
       <button className="md:hidden ml-auto text-slate-400" onClick={() => setOpen(o=>!o)}>
